@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; media-src *; img-src * data: blob:;">
+    <title>Control de Mercadería</title>
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            margin-bottom: 20px;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.3s;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-primary:active {
+            background: #5568d3;
+            transform: scale(0.98);
+        }
+        
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #718096;
+            color: white;
+        }
+        
+        .btn-info {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-box {
+            text-align: center;
+            padding: 15px;
+            border-radius: 10px;
+            background: #f7fafc;
+        }
+        
+        .stat-number {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            text-transform: uppercase;
+        }
+        
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        #scanner {
+            width: 100%;
+            height: auto;
+        }
+        
+        #scanner canvas,
+        #scanner video {
+            width: 100% !important;
+            height: auto !important;
+        }
+        
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        
+        .scanner-line {
+            position: absolute;
+            left: 10%;
+            right: 10%;
+            height: 2px;
+            background: #48bb78;
+            top: 50%;
+            transform: translateY(-50%);
+            box-shadow: 0 0 10px #48bb78;
+            animation: scan 2s infinite;
+        }
+        
+        @keyframes scan {
+            0%, 100% { top: 30%; }
+            50% { top: 70%; }
+        }
+        
+        .alert-success {
+            background: #c6f6d5;
+            border: 2px solid #48bb78;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            animation: pulse 0.5s;
+        }
+        
+        .alert-error {
+            background: #fed7d7;
+            border: 2px solid #f56565;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #48bb78, #38a169);
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .item-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .item {
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        
+        .item-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #2d3748;
+        }
+        
+        .item-detail {
+            font-size: 14px;
+            color: #718096;
+        }
+        
+        input[type="text"],
+        input[type="file"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .upload-area {
+            border: 3px dashed #cbd5e0;
+            border-radius: 15px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f7fafc;
+        }
+        
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="card">
+            <h1>📦 Control de Mercadería</h1>
+            <p class="subtitle">Sistema de inventario con escaneo EAN</p>
+        </div>
+
+        <!-- Upload Section -->
+        <div id="uploadSection" class="card">
+            <div class="upload-area" onclick="document.getElementById('csvFile').click()">
+                <div class="upload-icon">📄</div>
+                <h3>Cargar Inventario CSV</h3>
+                <p style="color: #718096; margin-top: 10px;">Formato: Material, EAN, Descripción</p>
+            </div>
+            <input type="file" id="csvFile" accept=".csv" class="hidden">
+        </div>
+
+        <!-- Scanning Section -->
+        <div id="scanSection" class="hidden">
+            <!-- Stats -->
+            <div class="card">
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #667eea;" id="totalCount">0</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #48bb78;" id="scannedCount">0</div>
+                        <div class="stat-label">Escaneados</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number" style="color: #ed8936;" id="missingCount">0</div>
+                        <div class="stat-label">Faltantes</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressBar" style="width: 0%">0%</div>
+                </div>
+            </div>
+
+            <!-- Last Scanned Alert -->
+            <div id="lastScannedAlert" class="hidden"></div>
+
+            <!-- Scanner -->
+            <div class="card">
+                <div id="scanner" class="hidden scanner-container">
+                    <div class="scanner-overlay">
+                        <div class="scanner-line"></div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" id="startScanBtn">
+                    📷 Iniciar Escaneo
+                </button>
+                <button class="btn btn-danger hidden" id="stopScanBtn">
+                    ❌ Detener Escaneo
+                </button>
+                <button class="btn btn-secondary" id="manualBtn">
+                    ✏️ Ingreso Manual
+                </button>
+                <button class="btn btn-success" id="finishBtn">
+                    ✅ Finalizar Inventario
+                </button>
+            </div>
+
+            <!-- Manual Input -->
+            <div id="manualInput" class="card hidden">
+                <h3 style="margin-bottom: 15px;">Ingreso Manual de EAN</h3>
+                <input type="text" id="manualEan" placeholder="Código EAN" inputmode="numeric">
+                <button class="btn btn-primary" id="addManualBtn">Agregar</button>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden">
+            <div class="card">
+                <h2 style="text-align: center; margin-bottom: 20px;">📊 Resultados</h2>
+                <div style="text-align: center; background: #c6f6d5; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
+                    <strong id="resultSummary"></strong>
+                </div>
+
+                <div id="missingItemsContainer"></div>
+
+                <button class="btn btn-info" id="emailBtn">
+                    📧 Enviar por Email
+                </button>
+                <button class="btn btn-primary" id="downloadBtn">
+                    💾 Descargar CSV
+                </button>
+                <button class="btn btn-secondary" id="newCollectionBtn">
+                    🔄 Nueva Colección
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="cordova.js"></script>
+    <script>
+        let inventory = [];
+        let scannedItems = new Set();
+        let isScanning = false;
+
+        // Wait for device ready
+        document.addEventListener('deviceready', onDeviceReady, false);
+
+        function onDeviceReady() {
+            console.log('Device is ready');
+            initApp();
+        }
+
+        function initApp() {
+            // Elements
+            const uploadSection = document.getElementById('uploadSection');
+            const scanSection = document.getElementById('scanSection');
+            const resultsSection = document.getElementById('resultsSection');
+            const csvFile = document.getElementById('csvFile');
+            const scanner = document.getElementById('scanner');
+            const startScanBtn = document.getElementById('startScanBtn');
+            const stopScanBtn = document.getElementById('stopScanBtn');
+            const manualBtn = document.getElementById('manualBtn');
+            const manualInput = document.getElementById('manualInput');
+            const manualEan = document.getElementById('manualEan');
+            const addManualBtn = document.getElementById('addManualBtn');
+            const finishBtn = document.getElementById('finishBtn');
+            const lastScannedAlert = document.getElementById('lastScannedAlert');
+
+            // Load CSV
+            csvFile.addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    const text = event.target.result;
+                    const lines = text.split('\n').filter(line => line.trim());
+                    
+                    inventory = lines.slice(1).map(line => {
+                        const parts = line.split(',');
+                        if (parts.length >= 3) {
+                            return {
+                                material: parts[0].trim(),
+                                ean: parts[1].trim(),
+                                descripcion: parts.slice(2).join(',').trim()
+                            };
+                        }
+                        return null;
+                    }).filter(item => item && item.material && item.ean);
+
+                    if (inventory.length > 0) {
+                        uploadSection.classList.add('hidden');
+                        scanSection.classList.remove('hidden');
+                        updateStats();
+                        alert(`✓ ${inventory.length} productos cargados`);
+                    } else {
+                        alert('❌ Error: El archivo CSV está vacío o mal formateado');
+                    }
+                };
+                reader.readAsText(file);
+            });
+
+            // Start scanning
+            startScanBtn.addEventListener('click', function() {
+                startScanning();
+            });
+
+            // Stop scanning
+            stopScanBtn.addEventListener('click', function() {
+                stopScanning();
+            });
+
+            // Manual input
+            manualBtn.addEventListener('click', function() {
+                manualInput.classList.toggle('hidden');
+                if (!manualInput.classList.contains('hidden')) {
+                    manualEan.focus();
+                }
+            });
+
+            addManualBtn.addEventListener('click', function() {
+                addManualEan();
+            });
+
+            manualEan.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addManualEan();
+                }
+            });
+
+            function addManualEan() {
+                const ean = manualEan.value.trim();
+                if (ean) {
+                    processBarcode(ean);
+                    manualEan.value = '';
+                }
+            }
+
+            // Finish
+            finishBtn.addEventListener('click', function() {
+                stopScanning();
+                showResults();
+            });
+
+            // Start scanning
+            function startScanning() {
+                scanner.classList.remove('hidden');
+                startScanBtn.classList.add('hidden');
+                stopScanBtn.classList.remove('hidden');
+                
+                Quagga.init({
+                    inputStream: {
+                        name: "Live",
+                        type: "LiveStream",
+                        target: scanner,
+                        constraints: {
+                            width: 640,
+                            height: 480,
+                            facingMode: "environment"
+                        }
+                    },
+                    decoder: {
+                        readers: [
+                            "ean_reader",
+                            "ean_8_reader",
+                            "code_128_reader",
+                            "code_39_reader",
+                            "upc_reader",
+                            "upc_e_reader"
+                        ]
+                    }
+                }, function(err) {
+                    if (err) {
+                        console.error(err);
+                        alert('❌ Error al iniciar la cámara: ' + err.message);
+                        stopScanning();
+                        return;
+                    }
+                    Quagga.start();
+                    isScanning = true;
+                });
+
+                Quagga.onDetected(function(result) {
+                    const code = result.codeResult.code;
+                    processBarcode(code);
+                });
+            }
+
+            // Stop scanning
+            function stopScanning() {
+                if (isScanning) {
+                    Quagga.stop();
+                    isScanning = false;
+                }
+                scanner.classList.add('hidden');
+                startScanBtn.classList.remove('hidden');
+                stopScanBtn.classList.add('hidden');
+            }
+
+            // Process barcode
+            function processBarcode(code) {
+                const item = inventory.find(i => i.ean === code);
+                
+                if (item && !scannedItems.has(code)) {
+                    scannedItems.add(code);
+                    updateStats();
+                    showLastScanned(item);
+                    playBeep();
+                    vibrate();
+                } else if (!item) {
+                    vibrate([100, 50, 100]);
+                }
+            }
+
+            // Update stats
+            function updateStats() {
+                const total = inventory.length;
+                const scanned = scannedItems.size;
+                const missing = total - scanned;
+                const percentage = Math.round((scanned / total) * 100);
+
+                document.getElementById('totalCount').textContent = total;
+                document.getElementById('scannedCount').textContent = scanned;
+                document.getElementById('missingCount').textContent = missing;
+                document.getElementById('progressBar').style.width = percentage + '%';
+                document.getElementById('progressBar').textContent = percentage + '%';
+            }
+
+            // Show last scanned
+            function showLastScanned(item) {
+                lastScannedAlert.className = 'alert-success';
+                lastScannedAlert.innerHTML = `
+                    <strong>✓ Escaneado:</strong><br>
+                    ${item.descripcion}<br>
+                    <small>EAN: ${item.ean}</small>
+                `;
+                lastScannedAlert.classList.remove('hidden');
+            }
+
+            // Play beep
+            function playBeep() {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.1);
+            }
+
+            // Vibrate
+            function vibrate(pattern = 200) {
+                if (navigator.vibrate) {
+                    navigator.vibrate(pattern);
+                }
+            }
+
+            // Show results
+            function showResults() {
+                scanSection.classList.add('hidden');
+                resultsSection.classList.remove('hidden');
+
+                const total = inventory.length;
+                const scanned = scannedItems.size;
+                const missing = inventory.filter(item => !scannedItems.has(item.ean));
+
+                document.getElementById('resultSummary').textContent = 
+                    `${scanned} de ${total} productos escaneados (${Math.round((scanned/total)*100)}%)`;
+
+                const container = document.getElementById('missingItemsContainer');
+                
+                if (missing.length > 0) {
+                    container.innerHTML = `
+                        <h3 style="margin-bottom: 15px;">⚠️ Items Faltantes (${missing.length})</h3>
+                        <div class="item-list">
+                            ${missing.map(item => `
+                                <div class="item">
+                                    <div class="item-title">${item.descripcion}</div>
+                                    <div class="item-detail">Material: ${item.material}</div>
+                                    <div class="item-detail">EAN: ${item.ean}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 30px;">
+                            <div style="font-size: 64px; margin-bottom: 15px;">🎉</div>
+                            <h3 style="color: #48bb78;">¡Inventario 100% Completo!</h3>
+                            <p style="color: #718096;">Todos los items fueron escaneados</p>
+                        </div>
+                    `;
+                }
+            }
+
+            // Email button
+            document.getElementById('emailBtn').addEventListener('click', function() {
+                const missing = inventory.filter(item => !scannedItems.has(item.ean));
+                const subject = encodeURIComponent('Inventario - Items Faltantes');
+                const body = encodeURIComponent(
+                    `REPORTE DE INVENTARIO\n\n` +
+                    `Total: ${inventory.length}\n` +
+                    `Escaneados: ${scannedItems.size}\n` +
+                    `Faltantes: ${missing.length}\n\n` +
+                    `ITEMS FALTANTES:\n\n` +
+                    missing.map(item => 
+                        `Material: ${item.material}\nEAN: ${item.ean}\nDescripción: ${item.descripcion}\n---`
+                    ).join('\n')
+                );
+                window.location.href = `mailto:?subject=${subject}&body=${body}`;
+            });
+
+            // Download CSV
+            document.getElementById('downloadBtn').addEventListener('click', function() {
+                const missing = inventory.filter(item => !scannedItems.has(item.ean));
+                const csv = [
+                    'Material,EAN,Descripción',
+                    ...missing.map(item => `${item.material},${item.ean},${item.descripcion}`)
+                ].join('\n');
+                
+                const blob = new Blob([csv], { type: 'text/csv' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'items_faltantes.csv';
+                a.click();
+            });
+
+            // New collection
+            document.getElementById('newCollectionBtn').addEventListener('click', function() {
+                scannedItems.clear();
+                resultsSection.classList.add('hidden');
+                scanSection.classList.remove('hidden');
+                updateStats();
+                lastScannedAlert.classList.add('hidden');
+            });
+        }
+
+        // For browser testing
+        if (!window.cordova) {
+            initApp();
+        }
+    </script>
+</body>
+</html>
