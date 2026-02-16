@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; media-src *; img-src * data: blob:;">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: https://cdn.jsdelivr.net https://unpkg.com 'unsafe-inline' 'unsafe-eval'; media-src *; img-src * data: blob:;">
     <title>Control de Mercadería</title>
-    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -91,6 +91,11 @@
             color: white;
         }
         
+        .btn-warning {
+            background: #ed8936;
+            color: white;
+        }
+        
         .stats {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -117,7 +122,7 @@
             text-transform: uppercase;
         }
         
-        .scanner-container {
+        #videoContainer {
             position: relative;
             width: 100%;
             background: #000;
@@ -126,15 +131,10 @@
             margin-bottom: 15px;
         }
         
-        #scanner {
+        #video {
             width: 100%;
             height: auto;
-        }
-        
-        #scanner canvas,
-        #scanner video {
-            width: 100% !important;
-            height: auto !important;
+            display: block;
         }
         
         .scanner-overlay {
@@ -144,24 +144,53 @@
             right: 0;
             bottom: 0;
             pointer-events: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         
-        .scanner-line {
+        .scan-region {
+            width: 80%;
+            height: 40%;
+            border: 3px solid #48bb78;
+            border-radius: 10px;
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        
+        .scan-region::before,
+        .scan-region::after {
+            content: '';
             position: absolute;
-            left: 10%;
-            right: 10%;
-            height: 2px;
             background: #48bb78;
+        }
+        
+        .scan-region::before {
+            width: 100%;
+            height: 2px;
+            left: 0;
             top: 50%;
             transform: translateY(-50%);
+            animation: scanLine 2s infinite;
             box-shadow: 0 0 10px #48bb78;
-            animation: scan 2s infinite;
         }
         
-        @keyframes scan {
-            0%, 100% { top: 30%; }
-            50% { top: 70%; }
+        @keyframes scanLine {
+            0%, 100% { top: 20%; }
+            50% { top: 80%; }
         }
+        
+        .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #48bb78;
+        }
+        
+        .corner.tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+        .corner.tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+        .corner.bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+        .corner.br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
         
         .alert-success {
             background: #c6f6d5;
@@ -178,6 +207,15 @@
             padding: 15px;
             border-radius: 10px;
             margin-bottom: 15px;
+        }
+        
+        .alert-info {
+            background: #bee3f8;
+            border: 2px solid #4299e1;
+            padding: 12px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
         }
         
         @keyframes pulse {
@@ -261,6 +299,16 @@
             font-size: 48px;
             margin-bottom: 15px;
         }
+        
+        .scan-status {
+            text-align: center;
+            padding: 10px;
+            background: #4299e1;
+            color: white;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -309,38 +357,53 @@
 
             <!-- Scanner -->
             <div class="card">
-                <div id="scanner" class="hidden scanner-container">
+                <div id="videoContainer" class="hidden">
+                    <video id="video" playsinline autoplay></video>
                     <div class="scanner-overlay">
-                        <div class="scanner-line"></div>
+                        <div class="scan-region">
+                            <div class="corner tl"></div>
+                            <div class="corner tr"></div>
+                            <div class="corner bl"></div>
+                            <div class="corner br"></div>
+                        </div>
                     </div>
                 </div>
                 
+                <div id="scanStatus" class="scan-status hidden">
+                    🔍 Escaneando... Acerca el código de barras
+                </div>
+                
                 <button class="btn btn-primary" id="startScanBtn">
-                    📷 Iniciar Escaneo
+                    📷 Iniciar Escaneo con Cámara
                 </button>
                 <button class="btn btn-danger hidden" id="stopScanBtn">
-                    ❌ Detener Escaneo
+                    ⏹️ Detener Escaneo
                 </button>
                 <button class="btn btn-secondary" id="manualBtn">
-                    ✏️ Ingreso Manual
+                    ✏️ Ingreso Manual de Código
                 </button>
                 <button class="btn btn-success" id="finishBtn">
                     ✅ Finalizar Inventario
                 </button>
             </div>
 
+            <!-- Info Alert -->
+            <div class="alert-info">
+                💡 <strong>Consejo:</strong> Mantén el código de barras dentro del área verde. La cámara escaneará automáticamente.
+            </div>
+
             <!-- Manual Input -->
             <div id="manualInput" class="card hidden">
-                <h3 style="margin-bottom: 15px;">Ingreso Manual de EAN</h3>
-                <input type="text" id="manualEan" placeholder="Código EAN" inputmode="numeric">
-                <button class="btn btn-primary" id="addManualBtn">Agregar</button>
+                <h3 style="margin-bottom: 15px;">✏️ Ingreso Manual de EAN</h3>
+                <input type="text" id="manualEan" placeholder="Código EAN o código de barras" inputmode="numeric">
+                <button class="btn btn-primary" id="addManualBtn">✓ Agregar</button>
             </div>
         </div>
 
         <!-- Results Section -->
         <div id="resultsSection" class="hidden">
             <div class="card">
-                <h2 style="text-align: center; margin-bottom: 20px;">📊 Resultados</h2>
+                <h2 style="text-align: center; margin-bottom: 20px;">📊 Resultados del Inventario</h2>
                 <div style="text-align: center; background: #c6f6d5; padding: 15px; border-radius: 10px; margin-bottom: 20px;">
                     <strong id="resultSummary"></strong>
                 </div>
@@ -351,7 +414,7 @@
                     📧 Enviar por Email
                 </button>
                 <button class="btn btn-primary" id="downloadBtn">
-                    💾 Descargar CSV
+                    💾 Descargar CSV de Faltantes
                 </button>
                 <button class="btn btn-secondary" id="newCollectionBtn">
                     🔄 Nueva Colección
@@ -360,209 +423,220 @@
         </div>
     </div>
 
-    <script type="text/javascript" src="cordova.js"></script>
     <script>
         let inventory = [];
         let scannedItems = new Set();
         let isScanning = false;
+        let codeReader = null;
 
-        // Wait for device ready
-        document.addEventListener('deviceready', onDeviceReady, false);
+        // Elements
+        const uploadSection = document.getElementById('uploadSection');
+        const scanSection = document.getElementById('scanSection');
+        const resultsSection = document.getElementById('resultsSection');
+        const csvFile = document.getElementById('csvFile');
+        const videoContainer = document.getElementById('videoContainer');
+        const video = document.getElementById('video');
+        const startScanBtn = document.getElementById('startScanBtn');
+        const stopScanBtn = document.getElementById('stopScanBtn');
+        const manualBtn = document.getElementById('manualBtn');
+        const manualInput = document.getElementById('manualInput');
+        const manualEan = document.getElementById('manualEan');
+        const addManualBtn = document.getElementById('addManualBtn');
+        const finishBtn = document.getElementById('finishBtn');
+        const lastScannedAlert = document.getElementById('lastScannedAlert');
+        const scanStatus = document.getElementById('scanStatus');
 
-        function onDeviceReady() {
-            console.log('Device is ready');
-            initApp();
+        // Load CSV
+        csvFile.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const lines = text.split('\n').filter(line => line.trim());
+                
+                inventory = lines.slice(1).map(line => {
+                    const parts = line.split(',');
+                    if (parts.length >= 3) {
+                        return {
+                            material: parts[0].trim(),
+                            ean: parts[1].trim(),
+                            descripcion: parts.slice(2).join(',').trim()
+                        };
+                    }
+                    return null;
+                }).filter(item => item && item.material && item.ean);
+
+                if (inventory.length > 0) {
+                    uploadSection.classList.add('hidden');
+                    scanSection.classList.remove('hidden');
+                    updateStats();
+                    alert(`✓ ${inventory.length} productos cargados correctamente`);
+                } else {
+                    alert('❌ Error: El archivo CSV está vacío o mal formateado');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Start scanning
+        startScanBtn.addEventListener('click', async function() {
+            await startScanning();
+        });
+
+        // Stop scanning
+        stopScanBtn.addEventListener('click', function() {
+            stopScanning();
+        });
+
+        // Manual input
+        manualBtn.addEventListener('click', function() {
+            manualInput.classList.toggle('hidden');
+            if (!manualInput.classList.contains('hidden')) {
+                manualEan.focus();
+            }
+        });
+
+        addManualBtn.addEventListener('click', function() {
+            addManualEan();
+        });
+
+        manualEan.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addManualEan();
+            }
+        });
+
+        function addManualEan() {
+            const ean = manualEan.value.trim();
+            if (ean) {
+                processBarcode(ean);
+                manualEan.value = '';
+            }
         }
 
-        function initApp() {
-            // Elements
-            const uploadSection = document.getElementById('uploadSection');
-            const scanSection = document.getElementById('scanSection');
-            const resultsSection = document.getElementById('resultsSection');
-            const csvFile = document.getElementById('csvFile');
-            const scanner = document.getElementById('scanner');
-            const startScanBtn = document.getElementById('startScanBtn');
-            const stopScanBtn = document.getElementById('stopScanBtn');
-            const manualBtn = document.getElementById('manualBtn');
-            const manualInput = document.getElementById('manualInput');
-            const manualEan = document.getElementById('manualEan');
-            const addManualBtn = document.getElementById('addManualBtn');
-            const finishBtn = document.getElementById('finishBtn');
-            const lastScannedAlert = document.getElementById('lastScannedAlert');
+        // Finish
+        finishBtn.addEventListener('click', function() {
+            stopScanning();
+            showResults();
+        });
 
-            // Load CSV
-            csvFile.addEventListener('change', function(e) {
-                const file = e.target.files[0];
-                if (!file) return;
-
-                const reader = new FileReader();
-                reader.onload = function(event) {
-                    const text = event.target.result;
-                    const lines = text.split('\n').filter(line => line.trim());
-                    
-                    inventory = lines.slice(1).map(line => {
-                        const parts = line.split(',');
-                        if (parts.length >= 3) {
-                            return {
-                                material: parts[0].trim(),
-                                ean: parts[1].trim(),
-                                descripcion: parts.slice(2).join(',').trim()
-                            };
-                        }
-                        return null;
-                    }).filter(item => item && item.material && item.ean);
-
-                    if (inventory.length > 0) {
-                        uploadSection.classList.add('hidden');
-                        scanSection.classList.remove('hidden');
-                        updateStats();
-                        alert(`✓ ${inventory.length} productos cargados`);
-                    } else {
-                        alert('❌ Error: El archivo CSV está vacío o mal formateado');
-                    }
-                };
-                reader.readAsText(file);
-            });
-
-            // Start scanning
-            startScanBtn.addEventListener('click', function() {
-                startScanning();
-            });
-
-            // Stop scanning
-            stopScanBtn.addEventListener('click', function() {
-                stopScanning();
-            });
-
-            // Manual input
-            manualBtn.addEventListener('click', function() {
-                manualInput.classList.toggle('hidden');
-                if (!manualInput.classList.contains('hidden')) {
-                    manualEan.focus();
-                }
-            });
-
-            addManualBtn.addEventListener('click', function() {
-                addManualEan();
-            });
-
-            manualEan.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    addManualEan();
-                }
-            });
-
-            function addManualEan() {
-                const ean = manualEan.value.trim();
-                if (ean) {
-                    processBarcode(ean);
-                    manualEan.value = '';
-                }
-            }
-
-            // Finish
-            finishBtn.addEventListener('click', function() {
-                stopScanning();
-                showResults();
-            });
-
-            // Start scanning
-            function startScanning() {
-                scanner.classList.remove('hidden');
+        // Start scanning with ZXing
+        async function startScanning() {
+            try {
+                videoContainer.classList.remove('hidden');
                 startScanBtn.classList.add('hidden');
                 stopScanBtn.classList.remove('hidden');
+                scanStatus.classList.remove('hidden');
+
+                // Create code reader
+                codeReader = new ZXing.BrowserMultiFormatReader();
                 
-                Quagga.init({
-                    inputStream: {
-                        name: "Live",
-                        type: "LiveStream",
-                        target: scanner,
-                        constraints: {
-                            width: 640,
-                            height: 480,
-                            facingMode: "environment"
+                // Get video devices
+                const videoInputDevices = await codeReader.listVideoInputDevices();
+                
+                // Find back camera
+                let selectedDeviceId;
+                for (const device of videoInputDevices) {
+                    if (device.label.toLowerCase().includes('back') || 
+                        device.label.toLowerCase().includes('rear') ||
+                        device.label.toLowerCase().includes('trasera')) {
+                        selectedDeviceId = device.deviceId;
+                        break;
+                    }
+                }
+                
+                // Use first camera if back not found
+                if (!selectedDeviceId && videoInputDevices.length > 0) {
+                    selectedDeviceId = videoInputDevices[0].deviceId;
+                }
+
+                // Start decoding
+                await codeReader.decodeFromVideoDevice(
+                    selectedDeviceId,
+                    video,
+                    (result, err) => {
+                        if (result) {
+                            const code = result.getText();
+                            processBarcode(code);
                         }
-                    },
-                    decoder: {
-                        readers: [
-                            "ean_reader",
-                            "ean_8_reader",
-                            "code_128_reader",
-                            "code_39_reader",
-                            "upc_reader",
-                            "upc_e_reader"
-                        ]
                     }
-                }, function(err) {
-                    if (err) {
-                        console.error(err);
-                        alert('❌ Error al iniciar la cámara: ' + err.message);
-                        stopScanning();
-                        return;
-                    }
-                    Quagga.start();
-                    isScanning = true;
-                });
+                );
 
-                Quagga.onDetected(function(result) {
-                    const code = result.codeResult.code;
-                    processBarcode(code);
-                });
-            }
-
-            // Stop scanning
-            function stopScanning() {
-                if (isScanning) {
-                    Quagga.stop();
-                    isScanning = false;
-                }
-                scanner.classList.add('hidden');
-                startScanBtn.classList.remove('hidden');
-                stopScanBtn.classList.add('hidden');
-            }
-
-            // Process barcode
-            function processBarcode(code) {
-                const item = inventory.find(i => i.ean === code);
+                isScanning = true;
                 
-                if (item && !scannedItems.has(code)) {
-                    scannedItems.add(code);
-                    updateStats();
-                    showLastScanned(item);
-                    playBeep();
-                    vibrate();
-                } else if (!item) {
-                    vibrate([100, 50, 100]);
-                }
+            } catch (err) {
+                console.error('Error al iniciar la cámara:', err);
+                alert('❌ Error al acceder a la cámara: ' + err.message + '\n\nAsegúrate de:\n1. Permitir acceso a la cámara\n2. Usar Chrome o Firefox\n3. Estar en una conexión HTTPS');
+                stopScanning();
             }
+        }
 
-            // Update stats
-            function updateStats() {
-                const total = inventory.length;
-                const scanned = scannedItems.size;
-                const missing = total - scanned;
-                const percentage = Math.round((scanned / total) * 100);
-
-                document.getElementById('totalCount').textContent = total;
-                document.getElementById('scannedCount').textContent = scanned;
-                document.getElementById('missingCount').textContent = missing;
-                document.getElementById('progressBar').style.width = percentage + '%';
-                document.getElementById('progressBar').textContent = percentage + '%';
+        // Stop scanning
+        function stopScanning() {
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
             }
+            
+            videoContainer.classList.add('hidden');
+            startScanBtn.classList.remove('hidden');
+            stopScanBtn.classList.add('hidden');
+            scanStatus.classList.add('hidden');
+            isScanning = false;
+        }
 
-            // Show last scanned
-            function showLastScanned(item) {
-                lastScannedAlert.className = 'alert-success';
-                lastScannedAlert.innerHTML = `
-                    <strong>✓ Escaneado:</strong><br>
-                    ${item.descripcion}<br>
-                    <small>EAN: ${item.ean}</small>
-                `;
-                lastScannedAlert.classList.remove('hidden');
+        // Process barcode
+        function processBarcode(code) {
+            const item = inventory.find(i => i.ean === code);
+            
+            if (item && !scannedItems.has(code)) {
+                scannedItems.add(code);
+                updateStats();
+                showLastScanned(item);
+                playBeep();
+                vibrate();
+            } else if (!item) {
+                // Vibrate differently for not found
+                vibrate([100, 50, 100]);
             }
+            // If already scanned, do nothing (no annoying feedback)
+        }
 
-            // Play beep
-            function playBeep() {
+        // Update stats
+        function updateStats() {
+            const total = inventory.length;
+            const scanned = scannedItems.size;
+            const missing = total - scanned;
+            const percentage = Math.round((scanned / total) * 100);
+
+            document.getElementById('totalCount').textContent = total;
+            document.getElementById('scannedCount').textContent = scanned;
+            document.getElementById('missingCount').textContent = missing;
+            document.getElementById('progressBar').style.width = percentage + '%';
+            document.getElementById('progressBar').textContent = percentage + '%';
+        }
+
+        // Show last scanned
+        function showLastScanned(item) {
+            lastScannedAlert.className = 'alert-success';
+            lastScannedAlert.innerHTML = `
+                <strong>✓ Escaneado exitosamente:</strong><br>
+                <strong>${item.descripcion}</strong><br>
+                <small style="color: #2d5016;">Material: ${item.material} | EAN: ${item.ean}</small>
+            `;
+            lastScannedAlert.classList.remove('hidden');
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                lastScannedAlert.classList.add('hidden');
+            }, 3000);
+        }
+
+        // Play beep
+        function playBeep() {
+            try {
                 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
                 const oscillator = audioContext.createOscillator();
                 const gainNode = audioContext.createGain();
@@ -578,100 +652,97 @@
                 
                 oscillator.start(audioContext.currentTime);
                 oscillator.stop(audioContext.currentTime + 0.1);
+            } catch (e) {
+                console.log('Audio not available');
             }
-
-            // Vibrate
-            function vibrate(pattern = 200) {
-                if (navigator.vibrate) {
-                    navigator.vibrate(pattern);
-                }
-            }
-
-            // Show results
-            function showResults() {
-                scanSection.classList.add('hidden');
-                resultsSection.classList.remove('hidden');
-
-                const total = inventory.length;
-                const scanned = scannedItems.size;
-                const missing = inventory.filter(item => !scannedItems.has(item.ean));
-
-                document.getElementById('resultSummary').textContent = 
-                    `${scanned} de ${total} productos escaneados (${Math.round((scanned/total)*100)}%)`;
-
-                const container = document.getElementById('missingItemsContainer');
-                
-                if (missing.length > 0) {
-                    container.innerHTML = `
-                        <h3 style="margin-bottom: 15px;">⚠️ Items Faltantes (${missing.length})</h3>
-                        <div class="item-list">
-                            ${missing.map(item => `
-                                <div class="item">
-                                    <div class="item-title">${item.descripcion}</div>
-                                    <div class="item-detail">Material: ${item.material}</div>
-                                    <div class="item-detail">EAN: ${item.ean}</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: 30px;">
-                            <div style="font-size: 64px; margin-bottom: 15px;">🎉</div>
-                            <h3 style="color: #48bb78;">¡Inventario 100% Completo!</h3>
-                            <p style="color: #718096;">Todos los items fueron escaneados</p>
-                        </div>
-                    `;
-                }
-            }
-
-            // Email button
-            document.getElementById('emailBtn').addEventListener('click', function() {
-                const missing = inventory.filter(item => !scannedItems.has(item.ean));
-                const subject = encodeURIComponent('Inventario - Items Faltantes');
-                const body = encodeURIComponent(
-                    `REPORTE DE INVENTARIO\n\n` +
-                    `Total: ${inventory.length}\n` +
-                    `Escaneados: ${scannedItems.size}\n` +
-                    `Faltantes: ${missing.length}\n\n` +
-                    `ITEMS FALTANTES:\n\n` +
-                    missing.map(item => 
-                        `Material: ${item.material}\nEAN: ${item.ean}\nDescripción: ${item.descripcion}\n---`
-                    ).join('\n')
-                );
-                window.location.href = `mailto:?subject=${subject}&body=${body}`;
-            });
-
-            // Download CSV
-            document.getElementById('downloadBtn').addEventListener('click', function() {
-                const missing = inventory.filter(item => !scannedItems.has(item.ean));
-                const csv = [
-                    'Material,EAN,Descripción',
-                    ...missing.map(item => `${item.material},${item.ean},${item.descripcion}`)
-                ].join('\n');
-                
-                const blob = new Blob([csv], { type: 'text/csv' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'items_faltantes.csv';
-                a.click();
-            });
-
-            // New collection
-            document.getElementById('newCollectionBtn').addEventListener('click', function() {
-                scannedItems.clear();
-                resultsSection.classList.add('hidden');
-                scanSection.classList.remove('hidden');
-                updateStats();
-                lastScannedAlert.classList.add('hidden');
-            });
         }
 
-        // For browser testing
-        if (!window.cordova) {
-            initApp();
+        // Vibrate
+        function vibrate(pattern = 200) {
+            if (navigator.vibrate) {
+                navigator.vibrate(pattern);
+            }
         }
+
+        // Show results
+        function showResults() {
+            scanSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+
+            const total = inventory.length;
+            const scanned = scannedItems.size;
+            const missing = inventory.filter(item => !scannedItems.has(item.ean));
+
+            document.getElementById('resultSummary').textContent = 
+                `${scanned} de ${total} productos escaneados (${Math.round((scanned/total)*100)}%)`;
+
+            const container = document.getElementById('missingItemsContainer');
+            
+            if (missing.length > 0) {
+                container.innerHTML = `
+                    <h3 style="margin-bottom: 15px;">⚠️ Items Faltantes (${missing.length})</h3>
+                    <div class="item-list">
+                        ${missing.map(item => `
+                            <div class="item">
+                                <div class="item-title">${item.descripcion}</div>
+                                <div class="item-detail">Material: ${item.material}</div>
+                                <div class="item-detail">EAN: ${item.ean}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            } else {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 30px;">
+                        <div style="font-size: 64px; margin-bottom: 15px;">🎉</div>
+                        <h3 style="color: #48bb78;">¡Inventario 100% Completo!</h3>
+                        <p style="color: #718096;">Todos los items fueron escaneados</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Email button
+        document.getElementById('emailBtn').addEventListener('click', function() {
+            const missing = inventory.filter(item => !scannedItems.has(item.ean));
+            const subject = encodeURIComponent('Inventario - Items Faltantes');
+            const body = encodeURIComponent(
+                `REPORTE DE INVENTARIO\n\n` +
+                `Total: ${inventory.length}\n` +
+                `Escaneados: ${scannedItems.size}\n` +
+                `Faltantes: ${missing.length}\n\n` +
+                `ITEMS FALTANTES:\n\n` +
+                missing.map(item => 
+                    `Material: ${item.material}\nEAN: ${item.ean}\nDescripción: ${item.descripcion}\n---`
+                ).join('\n')
+            );
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        });
+
+        // Download CSV
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            const missing = inventory.filter(item => !scannedItems.has(item.ean));
+            const csv = [
+                'Material,EAN,Descripción',
+                ...missing.map(item => `${item.material},${item.ean},${item.descripcion}`)
+            ].join('\n');
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'items_faltantes.csv';
+            a.click();
+        });
+
+        // New collection
+        document.getElementById('newCollectionBtn').addEventListener('click', function() {
+            scannedItems.clear();
+            resultsSection.classList.add('hidden');
+            scanSection.classList.remove('hidden');
+            updateStats();
+            lastScannedAlert.classList.add('hidden');
+        });
     </script>
 </body>
 </html>
